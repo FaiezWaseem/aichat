@@ -8,6 +8,14 @@ import ImageGenScreen from './src/screens/ImageGenScreen';
 import VoiceGenScreen from './src/screens/VoiceGenScreen';
 import Routes from './src/utility/Routes';
 
+import TrackPlayer from 'react-native-track-player';
+
+TrackPlayer.setupPlayer().then(() => {
+  // The player is ready to be used
+  console.log('TrackPlayer is ready');
+
+});
+
 const Tab = createBottomTabNavigator();
 
 function App() {
@@ -16,7 +24,7 @@ function App() {
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
-               let iconName;
+               let iconName = 'chat';
                if (route.name === Routes.HOME) {
                  iconName = 'chat';
                } else if (route.name === Routes.WEBVIEW) {

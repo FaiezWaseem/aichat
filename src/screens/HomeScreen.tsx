@@ -12,6 +12,7 @@ import {
     ActivityIndicator,
     SafeAreaView,
     Modal,
+    Image,
 } from 'react-native';
 
 import { Picker } from '@react-native-picker/picker';
@@ -19,6 +20,7 @@ import Storage from '../utility/Storage';
 
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
+import { pick } from '@react-native-documents/picker'
 
 import OpenAI from 'openai';
 
@@ -32,6 +34,12 @@ type Message = {
     id: string;
     text: string;
     isUser: boolean;
+    attachment?: {
+        name: string;
+        type: string;
+        uri: string;
+        size: number;
+    };
 };
 
 type ChatSession = {
@@ -58,6 +66,7 @@ export default function App() {
     const [showSessionList, setShowSessionList] = useState(false);
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
     const [editingSessionName, setEditingSessionName] = useState('');
+    const [selectedAttachment, setSelectedAttachment] = useState<any>(null);
 
     useEffect(() => {
         if (scrollViewRef.current) {
@@ -140,17 +149,17 @@ export default function App() {
         if (session) {
             setCurrentSessionId(sessionId);
             await Storage.setCurrentSessionId(sessionId);
-            
+
             // Load the latest messages from storage
             const sessionFromStorage = await Storage.getSession(sessionId);
             const messagesToLoad = sessionFromStorage?.messages || session.messages || [];
             setMessages(messagesToLoad);
-            
+
             // Update the local sessions state with the latest messages
-            setSessions(prev => prev.map(s => 
+            setSessions(prev => prev.map(s =>
                 s.id === sessionId ? { ...s, messages: messagesToLoad } : s
             ));
-            
+
             setShowSessionList(false);
         }
     };
@@ -200,16 +209,18 @@ export default function App() {
     };
 
     const handleSend = async () => {
-        if (!inputText.trim()) return;
+        if (!inputText.trim() && !selectedAttachment) return;
 
         const userMessage: Message = {
             id: Date.now().toString(),
-            text: inputText.trim(),
+            text: inputText.trim() || (selectedAttachment ? `Shared ${selectedAttachment.type.includes('image') ? 'image' : 'document'}: ${selectedAttachment.name}` : ''),
             isUser: true,
+            ...(selectedAttachment && { attachment: selectedAttachment })
         };
 
         setMessages((prev) => [...prev, userMessage]);
         setInputText('');
+        setSelectedAttachment(null);
         setIsLoading(true);
 
         try {
@@ -266,6 +277,31 @@ export default function App() {
         return currentSession?.name || 'New Chat';
     };
 
+    const handleAttachFile = async () => {
+        try {
+            const [result] = await pick({
+                mode: 'open',
+                allowMultiSelection: false,
+                type: ['image/*', 'application/pdf']
+            });
+
+            if (result) {
+                setSelectedAttachment({
+                    name: result.name,
+                    type: result.type,
+                    uri: result.uri,
+                    size: result.size
+                });
+            }
+        } catch (err) {
+            console.error('Error picking file:', err);
+        }
+    };
+
+    const removeAttachment = () => {
+        setSelectedAttachment(null);
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
@@ -281,15 +317,15 @@ export default function App() {
                     <Text style={styles.headerTitle}>{getCurrentSessionName()}</Text>
 
                     <View style={styles.sessionButton} >
-                          <Picker
-                                selectedValue={selectedModel}
-                                onValueChange={(itemValue) => setSelectedModel(itemValue)}
-                                style={styles.picker}
-                                dropdownIconColor="#fff">
-                                {availableModels.map((model) => (
-                                    <Picker.Item key={model} label={model} value={model} color="#fff" />
-                                ))}
-                            </Picker>
+                        <Picker
+                            selectedValue={selectedModel}
+                            onValueChange={(itemValue) => setSelectedModel(itemValue)}
+                            style={styles.picker}
+                            dropdownIconColor="#fff">
+                            {availableModels.map((model) => (
+                                <Picker.Item key={model} label={model} value={model} color="#fff" />
+                            ))}
+                        </Picker>
                     </View>
                 </View>
             </View>
@@ -405,6 +441,7 @@ export default function App() {
 
 
 
+
             <ScrollView
                 ref={scrollViewRef}
                 style={styles.messagesContainer}
@@ -423,15 +460,51 @@ export default function App() {
                             styles.messageBubble,
                             message.isUser ? styles.userMessage : styles.aiMessage,
                         ]}>
-                        <Text
-                            style={[
-                                styles.messageText,
-                                message.isUser ? styles.userMessageText : styles.aiMessageText,
-                            ]}
-                            selectable
-                        >
-                            {message.text}
-                        </Text>
+                        {message.attachment && (
+
+                            <View style={styles.messageAttachment}>
+                                {message.attachment.type.includes('image') ? (
+                                    <View style={styles.imageAttachmentContainer}>
+                                        <Image
+                                            source={{ uri: message.attachment.uri }}
+                                            style={styles.attachedImage}
+                                            resizeMode="cover"
+                                        />
+                                        <Text style={[
+                                            styles.attachmentFileName,
+                                            message.isUser ? styles.userMessageText : styles.aiMessageText,
+                                        ]} numberOfLines={1}>
+                                            {message.attachment.name}
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    <View style={styles.fileAttachmentContainer}>
+                                        <Icon
+                                            name="picture-as-pdf"
+                                            size={16}
+                                            color={message.isUser ? '#FFFFFF' : '#10B981'}
+                                        />
+                                        <Text style={[
+                                            styles.attachmentFileName,
+                                            message.isUser ? styles.userMessageText : styles.aiMessageText,
+                                        ]} numberOfLines={1}>
+                                            {message.attachment.name}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+                        {message.text && (
+                            <Text
+                                style={[
+                                    styles.messageText,
+                                    message.isUser ? styles.userMessageText : styles.aiMessageText,
+                                ]}
+                                selectable
+                            >
+                                {message.text}
+                            </Text>
+                        )}
                     </View>
                 ))}
                 {streamingText && (
@@ -451,7 +524,30 @@ export default function App() {
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+                {selectedAttachment && (
+                    <View style={styles.attachmentPreview}>
+                        <View style={styles.attachmentInfo}>
+                            <Icon
+                                name={selectedAttachment.type.includes('image') ? 'image' : 'picture-as-pdf'}
+                                size={20}
+                                color="#10B981"
+                            />
+                            <Text style={styles.attachmentName} numberOfLines={1}>
+                                {selectedAttachment.name}
+                            </Text>
+                            <Text style={styles.attachmentSize}>
+                                {(selectedAttachment.size / 1024).toFixed(1)} KB
+                            </Text>
+                        </View>
+                        <TouchableOpacity onPress={removeAttachment} style={styles.removeAttachmentButton}>
+                            <Icon name="close" size={16} color="#FF6B6B" />
+                        </TouchableOpacity>
+                    </View>
+                )}
                 <View style={styles.inputContainer}>
+                    <TouchableOpacity onPress={handleAttachFile} style={styles.attachButton}>
+                        <Icon name="attach-file" size={20} color="#6B7280" />
+                    </TouchableOpacity>
                     <TextInput
                         style={styles.input}
                         value={inputText}
@@ -464,11 +560,11 @@ export default function App() {
                     <TouchableOpacity
                         style={[
                             styles.sendButton,
-                            !inputText.trim() && styles.sendButtonDisabled,
+                            (!inputText.trim() && !selectedAttachment) && styles.sendButtonDisabled,
                         ]}
                         onPress={handleSend}
-                        disabled={!inputText.trim() || isLoading}>
-                        <Icon name='send' size={20} color={inputText.trim() ? '#FFFFFF' : '#6B7280'} />
+                        disabled={(!inputText.trim() && !selectedAttachment) || isLoading}>
+                        <Icon name='send' size={20} color={(inputText.trim() || selectedAttachment) ? '#FFFFFF' : '#6B7280'} />
 
                     </TouchableOpacity>
                 </View>
@@ -640,7 +736,7 @@ const styles = StyleSheet.create({
         color: '#fff',
         backgroundColor: '#2D3748',
         borderRadius: 8,
-        padding : 0
+        padding: 0
     },
 
     headerTitle: {
@@ -728,5 +824,62 @@ const styles = StyleSheet.create({
     },
     sendButtonDisabled: {
         backgroundColor: '#374151',
+    },
+    attachButton: {
+        padding: 8,
+        marginRight: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    attachmentPreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#2D3748',
+        padding: 12,
+        marginHorizontal: 16,
+        marginBottom: 8,
+        borderRadius: 8,
+        justifyContent: 'space-between',
+    },
+    attachmentInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    attachmentName: {
+        marginLeft: 8,
+        fontSize: 14,
+        color: '#FFFFFF',
+        flex: 1,
+    },
+    attachmentSize: {
+        marginLeft: 8,
+        fontSize: 12,
+        color: '#9CA3AF',
+    },
+    removeAttachmentButton: {
+        padding: 4,
+        marginLeft: 8,
+    },
+    messageAttachment: {
+        marginBottom: 4,
+    },
+    imageAttachmentContainer: {
+        width: '100%',
+    },
+    fileAttachmentContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    attachedImage: {
+        width: 200,
+        height: 150,
+        borderRadius: 8,
+        marginBottom: 4,
+    },
+    attachmentFileName: {
+        marginLeft: 6,
+        fontSize: 12,
+        flex: 1,
     },
 });

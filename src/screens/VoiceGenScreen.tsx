@@ -7,12 +7,13 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-  Platform,
   SafeAreaView,
   TextInput,
+  Platform,
   Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import TrackPlayer, { State, useProgress, useTrackPlayerEvents, Event } from 'react-native-track-player';
 
 export default function VoiceGenScreen() {
   const [text, setText] = useState('');
@@ -21,9 +22,27 @@ export default function VoiceGenScreen() {
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState('Filiz');
-  const [audioDuration, setAudioDuration] = useState(0);
-  const [audioPosition, setAudioPosition] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const progress = useProgress();
+
+  // Setup TrackPlayer
+  useEffect(() => {
+    const setupPlayer = async () => {
+      try {
+        await TrackPlayer.setupPlayer();
+      } catch (error) {
+        console.error('Error setting up TrackPlayer:', error);
+      }
+    };
+    setupPlayer();
+  }, []);
+
+  // Listen to playback state changes
+  useTrackPlayerEvents([Event.PlaybackState], async (event) => {
+    if (event.type === Event.PlaybackState) {
+      const state = await TrackPlayer.getState();
+      setIsPlaying(state === State.Playing);
+    }
+  });
 
   const voices = [
     { id: 'Filiz', name: 'Filiz' },
@@ -174,56 +193,28 @@ export default function VoiceGenScreen() {
     }
   };
 
-  const playAudio = (uri?: string) => {
+  const playAudio = async (uri?: string) => {
     const audioUrl = uri || audioUri;
     if (!audioUrl) return;
 
     try {
-      if (Platform.OS === 'web') {
-        // Web implementation using HTML5 Audio
-        if (isPlaying && audioRef.current) {
-          audioRef.current.pause();
-          setIsPlaying(false);
-        } else {
-          if (audioRef.current) {
-            audioRef.current.pause();
-          }
-          
-          const audio = new Audio(audioUrl);
-          audioRef.current = audio;
-          
-          audio.addEventListener('loadedmetadata', () => {
-            setAudioDuration(audio.duration);
-          });
-          
-          audio.addEventListener('timeupdate', () => {
-            setAudioPosition(audio.currentTime);
-          });
-          
-          audio.addEventListener('ended', () => {
-            setIsPlaying(false);
-            setAudioPosition(0);
-          });
-          
-          audio.addEventListener('error', (e) => {
-            console.error('Audio playback error:', e);
-            Alert.alert('Playback Error', 'Failed to play audio. Please try again.');
-            setIsPlaying(false);
-          });
-          
-          audio.play().then(() => {
-            setIsPlaying(true);
-          }).catch((error) => {
-            console.error('Audio play error:', error);
-            Alert.alert('Playback Error', 'Failed to start audio playback.');
-          });
-        }
+      const state = await TrackPlayer.getState();
+      
+      if (state === State.Playing) {
+        await TrackPlayer.pause();
       } else {
-        // For React Native mobile, we'll use Linking to open in default audio player
-        Linking.openURL(audioUrl).catch((error) => {
-          console.error('Error opening audio:', error);
-          Alert.alert('Error', 'Failed to open audio player.');
-        });
+        // Reset and add new track
+        await TrackPlayer.reset();
+        
+        const track = {
+          url: audioUrl,
+          title: `Generated Speech - ${selectedVoice}`,
+          artist: 'AI Voice Generator',
+          duration: 0, // Will be determined automatically
+        };
+        
+        await TrackPlayer.add(track);
+        await TrackPlayer.play();
       }
     } catch (error) {
       console.error('Error playing audio:', error);
@@ -266,19 +257,16 @@ export default function VoiceGenScreen() {
   // Cleanup audio when component unmounts
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      TrackPlayer.reset();
     };
   }, []);
 
-  const stopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setIsPlaying(false);
-      setAudioPosition(0);
+  const stopAudio = async () => {
+    try {
+      await TrackPlayer.stop();
+      await TrackPlayer.reset();
+    } catch (error) {
+      console.error('Error stopping audio:', error);
     }
   };
 
@@ -363,18 +351,18 @@ export default function VoiceGenScreen() {
                 </TouchableOpacity>
               </View>
               
-              {Platform.OS === 'web' && audioDuration > 0 && (
+              {progress.duration > 0 && (
                 <View style={styles.audioProgress}>
-                  <Text style={styles.timeText}>{formatTime(audioPosition)}</Text>
+                  <Text style={styles.timeText}>{formatTime(progress.position)}</Text>
                   <View style={styles.progressBar}>
                     <View 
                       style={[
                         styles.progressFill, 
-                        { width: `${(audioPosition / audioDuration) * 100}%` }
+                        { width: `${(progress.position / progress.duration) * 100}%` }
                       ]} 
                     />
                   </View>
-                  <Text style={styles.timeText}>{formatTime(audioDuration)}</Text>
+                  <Text style={styles.timeText}>{formatTime(progress.duration)}</Text>
                 </View>
               )}
             </View>

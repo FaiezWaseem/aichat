@@ -13,6 +13,7 @@ import {
   Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { saveDocuments } from '@react-native-documents/picker';
 
 export default function ImageGenScreen() {
   const [prompt, setPrompt] = useState('');
@@ -67,6 +68,44 @@ export default function ImageGenScreen() {
   const openImage = () => {
     if (imageUrl) {
       Linking.openURL(imageUrl);
+    }
+  };
+
+  const saveImage = async () => {
+    if (!imageUrl) return;
+
+    try {
+      const fileName = `generated-image-${Date.now()}.jpg`;
+      
+      // Download the image to a temporary local file first
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      
+      // Create a temporary file URL
+      const fileReader = new FileReader();
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        fileReader.onload = () => {
+          const result = fileReader.result as string;
+          resolve(result.split(',')[1]); // Remove data:image/jpeg;base64, prefix
+        };
+        fileReader.onerror = reject;
+        fileReader.readAsDataURL(blob);
+      });
+      
+      // Create a temporary file URI
+      const tempUri = `data:image/jpeg;base64,${base64Data}`;
+      
+      await saveDocuments({
+        sourceUris: [tempUri],
+        copy: true,
+        mimeType: 'image/jpeg',
+        fileName: fileName,
+      });
+      
+      Alert.alert('Success', 'Image saved successfully!');
+    } catch (error) {
+      console.error('Error saving image:', error);
+      Alert.alert('Error', 'Failed to save image. Please try again.');
     }
   };
 
@@ -129,6 +168,11 @@ export default function ImageGenScreen() {
               <TouchableOpacity style={styles.actionButton} onPress={openImage}>
                 <Icon name="open-in-new" size={20} color="#FFFFFF" />
                 <Text style={styles.actionButtonText}>Open</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton} onPress={saveImage}>
+                <Icon name="save" size={20} color="#FFFFFF" />
+                <Text style={styles.actionButtonText}>Save</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.actionButton} onPress={regenerateImage}>
