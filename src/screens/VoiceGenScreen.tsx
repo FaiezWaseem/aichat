@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,15 +20,99 @@ export default function VoiceGenScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState('alloy');
+  const [selectedVoice, setSelectedVoice] = useState('Filiz');
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioPosition, setAudioPosition] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const voices = [
+    { id: 'Filiz', name: 'Filiz' },
+    { id: 'Astrid', name: 'Astrid' },
+    { id: 'Tatyana', name: 'Tatyana' },
+    { id: 'Maxim', name: 'Maxim' },
+    { id: 'Carmen', name: 'Carmen' },
+    { id: 'Ines', name: 'Ines' },
+    { id: 'Cristiano', name: 'Cristiano' },
+    { id: 'Vitoria', name: 'Vitoria' },
+    { id: 'Ricardo', name: 'Ricardo' },
+    { id: 'Maja', name: 'Maja' },
+    { id: 'Jan', name: 'Jan' },
+    { id: 'Jacek', name: 'Jacek' },
+    { id: 'Ewa', name: 'Ewa' },
+    { id: 'Ruben', name: 'Ruben' },
+    { id: 'Lotte', name: 'Lotte' },
+    { id: 'Liv', name: 'Liv' },
+    { id: 'Seoyeon', name: 'Seoyeon' },
+    { id: 'Takumi', name: 'Takumi' },
+    { id: 'Mizuki', name: 'Mizuki' },
+    { id: 'Giorgio', name: 'Giorgio' },
+    { id: 'Carla', name: 'Carla' },
+    { id: 'Bianca', name: 'Bianca' },
+    { id: 'Karl', name: 'Karl' },
+    { id: 'Dora', name: 'Dora' },
+    { id: 'Mathieu', name: 'Mathieu' },
+    { id: 'Celine', name: 'Celine' },
+    { id: 'Chantal', name: 'Chantal' },
+    { id: 'Penelope', name: 'Penelope' },
+    { id: 'Miguel', name: 'Miguel' },
+    { id: 'Mia', name: 'Mia' },
+    { id: 'Enrique', name: 'Enrique' },
+    { id: 'Conchita', name: 'Conchita' },
+    { id: 'Geraint', name: 'Geraint' },
+    { id: 'Salli', name: 'Salli' },
+    { id: 'Matthew', name: 'Matthew' },
+    { id: 'Kimberly', name: 'Kimberly' },
+    { id: 'Kendra', name: 'Kendra' },
+    { id: 'Justin', name: 'Justin' },
+    { id: 'Joey', name: 'Joey' },
+    { id: 'Joanna', name: 'Joanna' },
+    { id: 'Ivy', name: 'Ivy' },
+    { id: 'Raveena', name: 'Raveena' },
+    { id: 'Aditi', name: 'Aditi' },
+    { id: 'Emma', name: 'Emma' },
+    { id: 'Brian', name: 'Brian' },
+    { id: 'Amy', name: 'Amy' },
+    { id: 'Russell', name: 'Russell' },
+    { id: 'Nicole', name: 'Nicole' },
+    { id: 'Vicki', name: 'Vicki' },
+    { id: 'Marlene', name: 'Marlene' },
+    { id: 'Hans', name: 'Hans' },
+    { id: 'Naja', name: 'Naja' },
+    { id: 'Mads', name: 'Mads' },
+    { id: 'Gwyneth', name: 'Gwyneth' },
+    { id: 'Zhiyu', name: 'Zhiyu' },
+    { id: 'Tracy', name: 'Tracy' },
+    { id: 'Danny', name: 'Danny' },
+    { id: 'Huihui', name: 'Huihui' },
+    { id: 'Yaoyao', name: 'Yaoyao' },
+    { id: 'Kangkang', name: 'Kangkang' },
+    { id: 'HanHan', name: 'HanHan' },
+    { id: 'Zhiwei', name: 'Zhiwei' },
     { id: 'Asaf', name: 'Asaf' },
-    { id: 'echo', name: 'Echo' },
-    { id: 'fable', name: 'Fable' },
-    { id: 'onyx', name: 'Onyx' },
-    { id: 'nova', name: 'Nova' },
-    { id: 'shimmer', name: 'Shimmer' },
+    { id: 'An', name: 'An' },
+    { id: 'Stefanos', name: 'Stefanos' },
+    { id: 'Filip', name: 'Filip' },
+    { id: 'Ivan', name: 'Ivan' },
+    { id: 'Heidi', name: 'Heidi' },
+    { id: 'Herena', name: 'Herena' },
+    { id: 'Kalpana', name: 'Kalpana' },
+    { id: 'Hemant', name: 'Hemant' },
+    { id: 'Matej', name: 'Matej' },
+    { id: 'Andika', name: 'Andika' },
+    { id: 'Rizwan', name: 'Rizwan' },
+    { id: 'Lado', name: 'Lado' },
+    { id: 'Valluvar', name: 'Valluvar' },
+    { id: 'Linda', name: 'Linda' },
+    { id: 'Heather', name: 'Heather' },
+    { id: 'Sean', name: 'Sean' },
+    { id: 'Michael', name: 'Michael' },
+    { id: 'Karsten', name: 'Karsten' },
+    { id: 'Guillaume', name: 'Guillaume' },
+    { id: 'Pattara', name: 'Pattara' },
+    { id: 'Jakub', name: 'Jakub' },
+    { id: 'Szabolcs', name: 'Szabolcs' },
+    { id: 'Hoda', name: 'Hoda' },
+    { id: 'Naayf', name: 'Naayf' }
   ];
 
   const startRecording = async () => {
@@ -76,7 +160,12 @@ export default function VoiceGenScreen() {
       const uri = generateTextToSpeechUrl(text, selectedVoice);
       setAudioUri(uri);
       
-      Alert.alert('Audio Generated', 'Text-to-speech audio has been generated successfully!');
+      // Auto-play the generated audio
+      setTimeout(() => {
+        playAudio(uri);
+      }, 500);
+      
+      Alert.alert('Audio Generated', 'Text-to-speech audio has been generated and is now playing!');
     } catch (error) {
       console.error('Error generating audio:', error);
       Alert.alert('Error', 'Failed to generate audio. Please try again.');
@@ -85,11 +174,60 @@ export default function VoiceGenScreen() {
     }
   };
 
-  const playAudio = () => {
-    if (audioUri) {
-      // In a real implementation, you would use react-native-sound or similar
-      Alert.alert('Play Audio', 'In a real implementation, this would play the generated audio.');
-      setIsPlaying(!isPlaying);
+  const playAudio = (uri?: string) => {
+    const audioUrl = uri || audioUri;
+    if (!audioUrl) return;
+
+    try {
+      if (Platform.OS === 'web') {
+        // Web implementation using HTML5 Audio
+        if (isPlaying && audioRef.current) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        } else {
+          if (audioRef.current) {
+            audioRef.current.pause();
+          }
+          
+          const audio = new Audio(audioUrl);
+          audioRef.current = audio;
+          
+          audio.addEventListener('loadedmetadata', () => {
+            setAudioDuration(audio.duration);
+          });
+          
+          audio.addEventListener('timeupdate', () => {
+            setAudioPosition(audio.currentTime);
+          });
+          
+          audio.addEventListener('ended', () => {
+            setIsPlaying(false);
+            setAudioPosition(0);
+          });
+          
+          audio.addEventListener('error', (e) => {
+            console.error('Audio playback error:', e);
+            Alert.alert('Playback Error', 'Failed to play audio. Please try again.');
+            setIsPlaying(false);
+          });
+          
+          audio.play().then(() => {
+            setIsPlaying(true);
+          }).catch((error) => {
+            console.error('Audio play error:', error);
+            Alert.alert('Playback Error', 'Failed to start audio playback.');
+          });
+        }
+      } else {
+        // For React Native mobile, we'll use Linking to open in default audio player
+        Linking.openURL(audioUrl).catch((error) => {
+          console.error('Error opening audio:', error);
+          Alert.alert('Error', 'Failed to open audio player.');
+        });
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      Alert.alert('Error', 'Failed to play audio.');
     }
   };
 
@@ -115,8 +253,39 @@ export default function VoiceGenScreen() {
       const uri = generateTextToSpeechUrl(sampleText, selectedVoice);
       setAudioUri(uri);
       setGenerating(false);
-      Alert.alert('Sample Generated', 'Sample audio has been generated!');
+      
+      // Auto-play the sample audio
+      setTimeout(() => {
+        playAudio(uri);
+      }, 500);
+      
+      Alert.alert('Sample Generated', 'Sample audio has been generated and is now playing!');
     }, 2000);
+  };
+
+  // Cleanup audio when component unmounts
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlaying(false);
+      setAudioPosition(0);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -170,20 +339,44 @@ export default function VoiceGenScreen() {
           </View>
           
           {audioUri && (
-            <View style={styles.playbackControls}>
-              <TouchableOpacity style={styles.actionButton} onPress={downloadAudio}>
-                <Icon name="download" size={20} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Download</Text>
-              </TouchableOpacity>
+            <View>
+              <View style={styles.playbackControls}>
+                <TouchableOpacity style={styles.actionButton} onPress={downloadAudio}>
+                  <Icon name="download" size={20} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>Download</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.playButton} onPress={() => playAudio()}>
+                  <Icon name={isPlaying ? "pause" : "play-arrow"} size={28} color="#FFFFFF" />
+                </TouchableOpacity>
+                
+                {isPlaying && (
+                  <TouchableOpacity style={styles.actionButton} onPress={stopAudio}>
+                    <Icon name="stop" size={20} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>Stop</Text>
+                  </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity style={styles.actionButton} onPress={() => setText('')}>
+                  <Icon name="clear" size={20} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
               
-              <TouchableOpacity style={styles.playButton} onPress={playAudio}>
-                <Icon name={isPlaying ? "pause" : "play-arrow"} size={28} color="#FFFFFF" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.actionButton} onPress={() => setText('')}>
-                <Icon name="clear" size={20} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Clear</Text>
-              </TouchableOpacity>
+              {Platform.OS === 'web' && audioDuration > 0 && (
+                <View style={styles.audioProgress}>
+                  <Text style={styles.timeText}>{formatTime(audioPosition)}</Text>
+                  <View style={styles.progressBar}>
+                    <View 
+                      style={[
+                        styles.progressFill, 
+                        { width: `${(audioPosition / audioDuration) * 100}%` }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.timeText}>{formatTime(audioDuration)}</Text>
+                </View>
+              )}
             </View>
           )}
           
@@ -442,5 +635,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     lineHeight: 20,
+  },
+  audioProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 16,
+  },
+  progressBar: {
+    flex: 1,
+    height: 4,
+    backgroundColor: '#374151',
+    borderRadius: 2,
+    marginHorizontal: 12,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#10B981',
+    borderRadius: 2,
+  },
+  timeText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+    color: '#6B7280',
+    minWidth: 40,
+    textAlign: 'center',
   },
 });

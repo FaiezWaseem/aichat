@@ -64,6 +64,119 @@ class Storage {
             console.error('Failed to clear chat messages:', e);
         }
     }
+
+    // Session Management Methods
+    static async createSession(sessionName: string) {
+        try {
+            const sessionId = Date.now().toString();
+            const session = {
+                id: sessionId,
+                name: sessionName,
+                createdAt: new Date().toISOString(),
+                lastUpdated: new Date().toISOString(),
+                messages: []
+            };
+            
+            const sessions = await this.getAllSessions();
+            sessions.push(session);
+            await AsyncStorage.setItem('@chat_sessions', JSON.stringify(sessions));
+            
+            return session;
+        } catch (e) {
+            console.error('Failed to create session:', e);
+            return null;
+        }
+    }
+
+    static async getAllSessions() {
+        try {
+            const saved = await AsyncStorage.getItem('@chat_sessions');
+            if (saved) {
+                return JSON.parse(saved);
+            }
+            return [];
+        } catch (e) {
+            console.error('Failed to load sessions:', e);
+            return [];
+        }
+    }
+
+    static async getSession(sessionId: string) {
+        try {
+            const sessions = await this.getAllSessions();
+            return sessions.find((session: any) => session.id === sessionId) || null;
+        } catch (e) {
+            console.error('Failed to get session:', e);
+            return null;
+        }
+    }
+
+    static async saveSessionMessages(sessionId: string, messages: any[]) {
+        try {
+            const sessions = await this.getAllSessions();
+            const sessionIndex = sessions.findIndex((session: any) => session.id === sessionId);
+            
+            if (sessionIndex !== -1) {
+                sessions[sessionIndex].messages = messages.slice(-50); // Keep last 50 messages
+                sessions[sessionIndex].lastUpdated = new Date().toISOString();
+                await AsyncStorage.setItem('@chat_sessions', JSON.stringify(sessions));
+                return true;
+            }
+            return false;
+        } catch (e) {
+            console.error('Failed to save session messages:', e);
+            return false;
+        }
+    }
+
+    static async deleteSession(sessionId: string) {
+        try {
+            const sessions = await this.getAllSessions();
+            const filteredSessions = sessions.filter((session: any) => session.id !== sessionId);
+            await AsyncStorage.setItem('@chat_sessions', JSON.stringify(filteredSessions));
+            return true;
+        } catch (e) {
+            console.error('Failed to delete session:', e);
+            return false;
+        }
+    }
+
+    static async renameSession(sessionId: string, newName: string) {
+        try {
+            const sessions = await this.getAllSessions();
+            const sessionIndex = sessions.findIndex((session: any) => session.id === sessionId);
+            
+            if (sessionIndex !== -1) {
+                sessions[sessionIndex].name = newName;
+                sessions[sessionIndex].lastUpdated = new Date().toISOString();
+                await AsyncStorage.setItem('@chat_sessions', JSON.stringify(sessions));
+                return true;
+            }
+            return false;
+        } catch (e) {
+            console.error('Failed to rename session:', e);
+            return false;
+        }
+    }
+
+    static async getCurrentSessionId() {
+        try {
+            return await AsyncStorage.getItem('@current_session_id');
+        } catch (e) {
+            console.error('Failed to get current session ID:', e);
+            return null;
+        }
+    }
+
+    static async setCurrentSessionId(sessionId: string) {
+        try {
+            await AsyncStorage.setItem('@current_session_id', sessionId);
+            return true;
+        } catch (e) {
+            console.error('Failed to set current session ID:', e);
+            return false;
+        }
+    }
 }
 
 export default Storage;
