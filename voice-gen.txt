@@ -1,0 +1,380 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  Platform
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '@/context/ThemeContext';
+import { Mic, StopCircle, Play, Pause, FileText, Download } from 'lucide-react-native';
+import Header from '@/components/Header';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import VoiceSelector from '@/components/VoiceSelector';
+import { generateTextToSpeech } from '@/utils/api';
+
+export default function VoiceScreen() {
+  const { colors } = useTheme();
+  const [text, setText] = useState('');
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState('alloy');
+
+  useEffect(() => {
+    return sound
+      ? () => {
+          sound.unloadAsync();
+        }
+      : undefined;
+  }, [sound]);
+
+  const startRecording = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        Alert.alert('Not Supported', 'Audio recording is not supported on web.');
+        return;
+      }
+      
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      
+      setRecording(recording);
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Failed to start recording', err);
+      Alert.alert('Error', 'Failed to start recording');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+
+    try {
+      setIsRecording(false);
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setRecording(null);
+      
+      if (uri) {
+        // Here you would send the audio file to the API for transcription
+        Alert.alert('Recording Completed', 'Audio recorded successfully. Transcription would be processed here.');
+      }
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+      Alert.alert('Error', 'Failed to stop recording');
+    }
+  };
+
+  const playSound = async () => {
+    if (!audioUri) return;
+
+    try {
+      if (sound) {
+        // If we already have a sound object
+        if (isPlaying) {
+          await sound.pauseAsync();
+          setIsPlaying(false);
+        } else {
+          await sound.playAsync();
+          setIsPlaying(true);
+        }
+      } else {
+        // Load the sound
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true },
+          onPlaybackStatusUpdate
+        );
+        
+        setSound(newSound);
+        setIsPlaying(true);
+      }
+    } catch (err) {
+      console.error('Failed to play sound', err);
+      Alert.alert('Error', 'Failed to play sound');
+    }
+  };
+
+  const onPlaybackStatusUpdate = (status: any) => {
+    if (status.isLoaded) {
+      setIsPlaying(status.isPlaying);
+      
+      if (status.didJustFinish) {
+        setIsPlaying(false);
+      }
+    }
+  };
+
+  const generateAudio = async () => {
+    const sampleText = "Welcome to our AI chatbot. I'm here to help you with any questions you might have. How can I assist you today?";
+    
+    setGenerating(true);
+    
+    try {
+      const uri = await generateTextToSpeech(sampleText, selectedVoice);
+      setAudioUri(uri);
+      setText(sampleText);
+      
+      // Create a new sound object
+      if (sound) {
+        await sound.unloadAsync();
+        setSound(null);
+      }
+    } catch (error) {
+      console.error('Error generating audio:', error);
+      Alert.alert('Error', 'Failed to generate audio. Please try again.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const downloadAudio = async () => {
+    if (!audioUri) return;
+
+    if (Platform.OS === 'web') {
+      window.open(audioUri, '_blank');
+      return;
+    }
+
+    try {
+      const fileUri = FileSystem.documentDirectory + 'ai_voice.mp3';
+      
+      // First, we need to check if we're dealing with a local or remote URI
+      let uriToSave = audioUri;
+      
+      // If it's a remote URI, download it first
+      if (audioUri.startsWith('http')) {
+        const downloadResult = await FileSystem.downloadAsync(
+          audioUri,
+          fileUri
+        );
+        
+        uriToSave = downloadResult.uri;
+      }
+      
+      await Sharing.shareAsync(uriToSave, {
+        mimeType: 'audio/mp3',
+        dialogTitle: 'Save or share this audio',
+      });
+    } catch (error) {
+      console.error('Error sharing/downloading audio:', error);
+      Alert.alert('Error', 'Failed to share or download audio.');
+    }
+  };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      flex: 1,
+      padding: 16,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cardTitle: {
+      fontFamily: 'Inter-SemiBold',
+      fontSize: 18,
+      color: colors.text,
+      marginBottom: 12,
+    },
+    recordingControls: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 20,
+    },
+    recordButton: {
+      width: 70,
+      height: 70,
+      borderRadius: 35,
+      backgroundColor: isRecording ? colors.error : colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    playbackControls: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 20,
+    },
+    playButton: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginHorizontal: 16,
+    },
+    downloadButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    statusText: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 16,
+    },
+    iconBackground: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginHorizontal: 16,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 20,
+    },
+    textPreview: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 16,
+      color: colors.text,
+      marginTop: 16,
+      lineHeight: 24,
+    },
+    generateButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+      marginTop: 24,
+      flexDirection: 'row',
+      justifyContent: 'center',
+    },
+    generateButtonText: {
+      color: '#fff',
+      fontFamily: 'Inter-SemiBold',
+      fontSize: 16,
+      marginLeft: 8,
+    },
+    warningText: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 8,
+      fontStyle: 'italic',
+    },
+  });
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <Header title="Voice Features" />
+      
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Text to Speech</Text>
+          
+          <VoiceSelector
+            selectedVoice={selectedVoice}
+            onSelectVoice={setSelectedVoice}
+          />
+          
+          {audioUri && (
+            <>
+              <View style={styles.divider} />
+              
+              <Text style={styles.textPreview}>{text}</Text>
+              
+              <View style={styles.playbackControls}>
+                <TouchableOpacity style={styles.downloadButton} onPress={downloadAudio}>
+                  <Download size={24} color={colors.text} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.playButton} onPress={playSound}>
+                  {isPlaying ? (
+                    <Pause size={28} color="#fff" />
+                  ) : (
+                    <Play size={28} color="#fff" />
+                  )}
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.downloadButton} onPress={() => {}}>
+                  <FileText size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+          
+          <TouchableOpacity 
+            style={styles.generateButton}
+            onPress={generateAudio}
+            disabled={generating}
+          >
+            {generating ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Play size={20} color="#fff" />
+                <Text style={styles.generateButtonText}>Generate Sample Audio</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Speech to Text</Text>
+          
+          <View style={styles.recordingControls}>
+            {isRecording ? (
+              <TouchableOpacity style={styles.recordButton} onPress={stopRecording}>
+                <StopCircle size={32} color="#fff" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.recordButton} onPress={startRecording}>
+                <Mic size={32} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Text style={styles.statusText}>
+            {isRecording ? 'Recording... Tap to stop' : 'Tap microphone to start recording'}
+          </Text>
+          
+          {Platform.OS === 'web' && (
+            <Text style={styles.warningText}>
+              Note: Audio recording may not be available in all web browsers.
+            </Text>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}

@@ -1,0 +1,4 @@
+const BACKEND_URL = 'SERVER_URL';
+const SERVER_URL = 'SERVER_URL';
+const DEBUG = true;
+export { BACKEND_URL, SERVER_URL , DEBUG};
